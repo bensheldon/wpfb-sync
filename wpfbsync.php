@@ -32,20 +32,20 @@ class wpfbsync {
 		
 	}
 	
+	/**
+	 * Functions to parse cleanish URLs
+	 */
 	function add_query_vars($vars){
 		$vars[] = 'wpfbsync';
 		return $vars;
 	}
-	
   function add_rewrite_rules( $wp_rewrite ) {
     $new_rules = array( 
-       'wpfbsync/(.+)' => 'index.php?wpfbsync=' .
-         $wp_rewrite->preg_index(1) );
-  
+     'wpfbsync/(.+)' => 'index.php?wpfbsync='.$wp_rewrite->preg_index(1) 
+     );
     // Add the new rewrite rule into the top of the global rules array
     $wp_rewrite->rules = $new_rules + $wp_rewrite->rules;
   }
-	
 	function parse_wp_request( $wp ) {
   	if ( isset( $wp->query_vars['wpfbsync'] ) ) {
   		if ( $wp->query_vars['wpfbsync'] == 'realtime' )
@@ -53,8 +53,6 @@ class wpfbsync {
   		exit;
   	}
 	}
-	
-	
 	
 	/**
 	* Admin menu entry.
@@ -94,6 +92,7 @@ class wpfbsync {
 			</div>
 		<?php
 	}
+	
 	/**
 	 * Register our options
 	 */	
@@ -116,7 +115,6 @@ class wpfbsync {
 				
 		add_settings_section('section_publish', 'Publishing Settings', array(&$this,'admin_options_section_publishing'), __FILE__);
 		
-//		add_settings_field('plugin_chk1', 'Restore Defaults Upon Reactivation?', 'setting_chk1_fn', __FILE__, 'main_section');
 	}
 	
 	/**
@@ -127,7 +125,6 @@ class wpfbsync {
 	function admin_options_section_facebook() {
 		echo '<p>This plugin requires that you set up a <a href="http://www.facebook.com/developers/apps.php">Facebook Application</a> for this website. When configuring the Facebook Application via Facebook, make sure the following settings are correct: </p>';
 		echo '<p><strong>Site URL:</strong> ' . get_option('siteurl') . '/ (do not forget the ending slash); </p><p><strong>Domain:</strong> ' . parse_url(get_option('siteurl'), PHP_URL_HOST) . '</p>';
-
 	}
 	
 	/**
@@ -155,8 +152,9 @@ class wpfbsync {
 	 *
 	 * Setting: Connect to Facebook / Authorize User
 	 *
-	 * Note: We don't actually provide a form-item, but rather save the session
-	 * data directly to the database; used mostly for formatting
+	 * Note: We don't actually provide a form-item, but rather 
+	 * query Facebook and save the authorized User's login & session
+	 * data directly to the database
 	 */
 	function admin_options_fb_user() {
 		$options = get_option('wpfbsync');
@@ -173,13 +171,11 @@ class wpfbsync {
       echo '<strong style="font-size:1.2em">' . $me['name'] . '</strong>';
       echo '<br /><small>Deauthorize <a href="http://www.facebook.com/settings/?tab=applications">this account</a> and disable the plugin. Changing your password on Facebook  will also require you to reauthorize your account.</small>';
       echo '<div style="clear:left"></div>';
-
 		}
 		// If NOT authorized, provide a "Connect to Facebook" option
 		// that will allow the user to become authorized be redirected
 		// back to this page, where the Session info will be saved (above)
 		else {
-			
 			$facebook = new Facebook(array(
 			  'appId'  => $options['fb_app_id'],
 			  'secret' => $options['fb_secret_key'],
@@ -193,6 +189,7 @@ class wpfbsync {
 			
 	  	$loginUrl = $facebook->getLoginUrl($params);
 		
+		  // Show the login link/"Connect with Facebook"
 		  echo "<a href='$loginUrl'><img src='http://static.ak.fbcdn.net/rsrc.php/zB6N8/hash/4li2k73z.gif' /></a>";
 	    
 	    // Show the error if there is already an existing session to prevent
@@ -244,7 +241,6 @@ class wpfbsync {
 			}
 		echo "</select>";
 		
-		print_r($options);
 		}
 	}
 	
@@ -287,6 +283,17 @@ class wpfbsync {
 		  }
 		  else {
 		    // UNSUBSCRIBE
+		    $facebook = new Facebook(array(
+		    	  'appId'  => $options['fb_app_id'],
+		    	  'secret' => $options['fb_secret_key'],
+		    	  'cookie' => false,
+		    	));
+	    	$session = $facebook->getSession();
+	    			    
+	    	$params = array(
+	    	  'access_token' => $session['access_token'],
+	    	  );
+		    $facebook->api('/'.$input['fb_app_id'].'/subscriptions', 'DELETE', $params); // DELETE method
 		  
 		  }
 		}
@@ -294,6 +301,11 @@ class wpfbsync {
 		return array_merge($options, $input); // merge and return the options
 	}
 
+  /**
+   * Callback for Options Setting
+   *
+   * Setting: For showing Publishing options
+   */
 	function admin_options_section_publishing() {
 		$options = get_option('wpfbsync');
 		
@@ -391,13 +403,10 @@ class wpfbsync {
       $updates = json_decode(file_get_contents("php://input"), true); 
       error_log('updates = ' . print_r($updates, true));              
     }
-    exit;
-    
+    exit;  
   }
-
+  
 }
-
-
 
 // enable plugin on init
 add_action('init', 'wpfb_init');
