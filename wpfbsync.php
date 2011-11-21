@@ -21,8 +21,40 @@ class wpfbsync {
 	function __construct() {
 	  // add an admin options menu
 	  add_action('admin_menu', array(&$this, 'admin_menu'));
+	  
+	  // setup custom routing
+	  add_filter('query_vars', array(&$this, 'add_query_vars') );
+	  //add_action('admin_init', 'flush_rewrite_rules');
+	  add_action('generate_rewrite_rules', array(&$this, 'add_rewrite_rules'));
+	  
+	  // routing for custom page callbacks
+	  add_action( 'parse_request', array( &$this, 'parse_wp_request' ) );
 		
 	}
+	
+	function add_query_vars($vars){
+		$vars[] = 'wpfbsync';
+		return $vars;
+	}
+	
+  function add_rewrite_rules( $wp_rewrite ) {
+    $new_rules = array( 
+       'wpfbsync/(.+)' => 'index.php?wpfbsync=' .
+         $wp_rewrite->preg_index(1) );
+  
+    // Add the new rewrite rule into the top of the global rules array
+    $wp_rewrite->rules = $new_rules + $wp_rewrite->rules;
+  }
+	
+	function parse_wp_request( $wp ) {
+  	if ( isset( $wp->query_vars['wpfbsync'] ) ) {
+  		if ( $wp->query_vars['wpfbsync'] == 'realtime' )
+  		$this->realtime_callback( );
+  		exit;
+  	}
+	}
+	
+	
 	
 	/**
 	* Admin menu entry.
@@ -81,10 +113,10 @@ class wpfbsync {
 				add_settings_field('fb_access_token', 'Sync with', array(&$this,'admin_options_fb_access_token'), __FILE__, 'section_facebook');
 			}
 		}
+				
+		add_settings_section('section_publish', 'Publishing Settings', array(&$this,'admin_options_section_publishing'), __FILE__);
 		
-		//add_settings_section('section_publish', 'Publishing Settings', array(&$this,'admin_options_section_publishing'), __FILE__);
-		
-		add_settings_field('plugin_chk1', 'Restore Defaults Upon Reactivation?', 'setting_chk1_fn', __FILE__, 'main_section');
+//		add_settings_field('plugin_chk1', 'Restore Defaults Upon Reactivation?', 'setting_chk1_fn', __FILE__, 'main_section');
 	}
 	
 	/**
@@ -211,6 +243,8 @@ class wpfbsync {
 				echo "<option value='$access_token' $selected>$name</option>";
 			}
 		echo "</select>";
+		
+		print_r($options);
 		}
 	}
 	
@@ -224,6 +258,41 @@ class wpfbsync {
 		if ( ($input['fb_app_id'] != $options['fb_app_id']) || ($input['fb_secret_key'] != $options['fb_secret_key']) ) {
 			$options['session'] = '';
 			update_option('wpfbsync', $options);
+		}
+		
+		// Check to see if our 'Synced With' (fb_access_token) has changed. If so, we need to update our Real-Time Pub Settings
+		if ( ($input['fb_access_token'] != $options['fb_access_token'])) {
+		  if ($input['fb_access_token'] != '') {
+		    // SUBSCRIBE
+		    $VERIFY_TOKEN = md5(get_bloginfo('admin_email'));
+		    $CALLBACK_URL = get_option('siteurl') . '/wpfbsync/realtime';
+		    
+		    $facebook = new Facebook(array(
+		    	  'appId'  => $options['fb_app_id'],
+		    	  'secret' => $options['fb_secret_key'],
+		    	  'cookie' => false,
+		    	));
+		    
+		    $session = $facebook->getSession();
+		    
+		    error_log(plugins_url('callback.php', __FILE__));
+		    
+		    $params = array(
+          'access_token' => $session['access_token'],
+          'object' => 'user',
+          'fields' => 'name,feed',
+          'callback_url' => $CALLBACK_URL,
+          'verify_token' => $VERIFY_TOKEN,
+          );
+          
+         $subs = $facebook->api('/'.$input['fb_app_id'].'/subscriptions', 'POST', $params); 
+        
+
+		  }
+		  else {
+		    // UNSUBSCRIBE
+		  
+		  }
 		}
 		
 		return array_merge($options, $input); // merge and return the options
@@ -240,12 +309,12 @@ class wpfbsync {
 			  'cookie' => false,
 			));
 		
-		echo plugins_url('callback.php', __FILE__);
+//		echo plugins_url('callback.php', __FILE__);
 
 		echo '<pre>';
-		print_r($facebook->api('/me/feed', array(
-			access_token =>$options['fb_access_token']
-		)));
+//		print_r($facebook->api('/me/feed', array(
+//			access_token =>$options['fb_access_token']
+//		)));
 		echo '</pre>';
 
 	}
@@ -309,8 +378,30 @@ class wpfbsync {
 		}
 		return NULL;
 	}
-} 
 
+  function realtime_callback () {
+    $options = get_option('wpfbsync');
+    
+    $VERIFY_TOKEN = md5(get_bloginfo('admin_email'));
+    $method = $_SERVER['REQUEST_METHOD'];
+    	
+    // In PHP, dots and spaces in query parameter names are converted to 
+    // underscores automatically. So we need to check "hub_mode" instead
+    //  of "hub.mode".                                                      
+    if ($method == 'GET' && $_GET['hub_mode'] == 'subscribe' &&
+        $_GET['hub_verify_token'] == $VERIFY_TOKEN) {
+      echo $_GET['hub_challenge'];
+      error_log('Facebook Subscribed');
+      exit; 
+    } elseif ($method == 'POST') {                                   
+      $updates = json_decode(file_get_contents("php://input"), true); 
+      error_log('updates = ' . print_r($updates, true));              
+    }
+    exit;
+    
+  }
+
+}
 
 
 
@@ -319,7 +410,7 @@ add_action('init', 'open_sesame');
 
 function open_sesame() {
    $wpfbsyn = new wpfbsync();
-   $fb_realtime_callback = new fb_realtime_callback();
+   //$fb_realtime_callback = new fb_realtime_callback();
 }
 
 
@@ -336,7 +427,7 @@ class fb_realtime_callback {
 	function page_callback() {
 		$VERIFY_TOKEN = md5(get_bloginfo('admin_email'));
 		$method = $_SERVER['REQUEST_METHOD'];
- 		
+ 		exit;
  		echo $VERIFY_TOKEN;
 		// In PHP, dots and spaces in query parameter names are converted to 
 		// underscores automatically. So we need to check "hub_mode" instead
@@ -350,6 +441,7 @@ class fb_realtime_callback {
 			echo 'ben';
 		  error_log('updates = ' . print_r($updates, true));              
 		}
+		echo 'Ben';
 		exit;
 	}
 	

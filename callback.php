@@ -2,8 +2,6 @@
 
 require_once("./wp-load.php");
 
-echo 'ben';
-
  // include the wordpress stack                                
 /**
  * This is sample subscription endpoint for using Facebook real-time update
