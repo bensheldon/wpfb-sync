@@ -8,7 +8,7 @@ Author: Ben Sheldon
 Author URI: http://island94.org
 */
 
-require('src/facebook.php');
+require('lib/facebook.php');
 
 
 class wpfbsync {
@@ -274,9 +274,7 @@ class wpfbsync {
 		    	));
 		    
 		    $session = $facebook->getSession();
-		    
-		    error_log(plugins_url('callback.php', __FILE__));
-		    
+		    		    
 		    $params = array(
           'access_token' => $session['access_token'],
           'object' => 'user',
@@ -285,9 +283,7 @@ class wpfbsync {
           'verify_token' => $VERIFY_TOKEN,
           );
           
-         $subs = $facebook->api('/'.$input['fb_app_id'].'/subscriptions', 'POST', $params); 
-        
-
+         $subs = $facebook->api('/'.$input['fb_app_id'].'/subscriptions', 'POST', $params);
 		  }
 		  else {
 		    // UNSUBSCRIBE
@@ -318,8 +314,6 @@ class wpfbsync {
 		echo '</pre>';
 
 	}
-
-
 
 	/**
 	 * Function that returns an authorized Facebook object
@@ -406,47 +400,8 @@ class wpfbsync {
 
 
 // enable plugin on init
-add_action('init', 'open_sesame');
+add_action('init', 'wpfb_init');
 
-function open_sesame() {
-   $wpfbsyn = new wpfbsync();
-   //$fb_realtime_callback = new fb_realtime_callback();
+function wpfb_init() {
+   $wpfbsync = new wpfbsync();
 }
-
-
-class fb_realtime_callback {
-
-	function __construct() {
-		
-		// Explicit update request in the HTTP request (e.g. from a cron job)
-		if (isset($_REQUEST['fb_realtime_callback']) && $_REQUEST['fb_realtime_callback']) {
-			$this->page_callback();
-		}
-	}
-	
-	function page_callback() {
-		$VERIFY_TOKEN = md5(get_bloginfo('admin_email'));
-		$method = $_SERVER['REQUEST_METHOD'];
- 		exit;
- 		echo $VERIFY_TOKEN;
-		// In PHP, dots and spaces in query parameter names are converted to 
-		// underscores automatically. So we need to check "hub_mode" instead
-		//  of "hub.mode".                                                      
-		if ($method == 'GET' && $_GET['hub_mode'] == 'subscribe' &&
-		    $_GET['hub_verify_token'] == $VERIFY_TOKEN) {
-		  echo $_GET['hub_challenge'];
-		  echo 'ben';
-		} elseif ($method == 'POST') {                                   
-		  $updates = json_decode(file_get_contents("php://input"), true); 
-			echo 'ben';
-		  error_log('updates = ' . print_r($updates, true));              
-		}
-		echo 'Ben';
-		exit;
-	}
-	
-}
-
-
-// Warning 
-/* add_action('admin_notices', create_function( '', "if ( ! current_user_can( 'manage_options' ) ) { return; } echo '<div class=\"error\"><p>';_e('There\'s been an error shortening your URL! <a href=\"".get_bloginfo('wpurl')."/wp-admin/options-general.php?page=wp-to-twitter/wp-to-twitter.php\">Visit your WP to Twitter settings page</a> to get more information and to clear this error message.','wp-to-twitter'); echo '</p></div>';" ) ); */
